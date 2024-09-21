@@ -36,13 +36,15 @@ public class SecurityConfig {
     @Autowired
     private CustomSecurityContextRepository customSecurityContextRepository;
 
+    @Autowired
+    private CustomAccessDeniedHandler customAccessDeniedHandler;
+
     @Bean
     public SecurityWebFilterChain filterChain(ServerHttpSecurity http) throws Exception {
         // 创建自定义 AuthenticationWebFilter 并设置 JsonServerAuthenticationConverter
         AuthenticationWebFilter authenticationWebFilter = new AuthenticationWebFilter(reactiveAuthenticationManager());
         authenticationWebFilter.setServerAuthenticationConverter(new JsonServerAuthenticationConverter());
-
-        // 自定义登录成功、失败处理器、登录接口、登录成功后 SecurityContext存储方式
+        // 自定义登录成功和失败处理器
         authenticationWebFilter.setAuthenticationSuccessHandler(customFormLogin.successHandler());
         authenticationWebFilter.setAuthenticationFailureHandler(customFormLogin.failureHandler());
         authenticationWebFilter.setSecurityContextRepository(customSecurityContextRepository);
@@ -50,26 +52,23 @@ public class SecurityConfig {
                 ServerWebExchangeMatchers.pathMatchers(HttpMethod.POST, new String[] { "/login" }));
 
         http
-                .authenticationManager(reactiveAuthenticationManager())
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
-                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
-                .addFilterAt(authenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION) // 替换默认的表单登录
+                .addFilterBefore(authenticationWebFilter, SecurityWebFiltersOrder.AUTHENTICATION) // 替换默认的表单登录
                 .securityContextRepository(customSecurityContextRepository)
                 .authorizeExchange(
                         (exchanges) -> exchanges
-                                .pathMatchers("/api/register").permitAll()
-                                .pathMatchers("/api/*").authenticated())
-                .exceptionHandling((exceptions) -> exceptions.authenticationEntryPoint(customAuthenticationEntryPoint));
+                                .pathMatchers("/api/register", "/favicon.ico").permitAll()
+                                .pathMatchers("/api/**").authenticated())
+                .exceptionHandling((exceptions) -> exceptions
+                        .authenticationEntryPoint(customAuthenticationEntryPoint)
+                        .accessDeniedHandler(customAccessDeniedHandler))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .cors(ServerHttpSecurity.CorsSpec::disable)
+                .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
+                .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable);
 
         return http.build();
     }
 
-    /**
-     * 密码 加密方式
-     * 
-     * @return
-     */
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -83,11 +82,9 @@ public class SecurityConfig {
         LinkedList<ReactiveAuthenticationManager> managers = new LinkedList<>();
         UserDetailsRepositoryReactiveAuthenticationManager UserDetailsServiceAuthenticationManager = new UserDetailsRepositoryReactiveAuthenticationManager(
                 customUserDetailsService);
-        /**
-         * 添加密码加密方式
-         */
         UserDetailsServiceAuthenticationManager.setPasswordEncoder(passwordEncoder()); // 设置 PasswordEncoder
-
+        // 必须放最后不然会优先使用用户名密码校验但是用户名密码不对时此 AuthenticationManager 会调用 Mono.error 造成后面的
+        // AuthenticationManager 不生效
         managers.add(UserDetailsServiceAuthenticationManager);
         // managers.add(tokenAuthenticationManager);
         return new DelegatingReactiveAuthenticationManager(managers);
