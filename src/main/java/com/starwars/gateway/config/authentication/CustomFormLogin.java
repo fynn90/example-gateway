@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.starwars.gateway.common.enums.UserStatusCodeEnum;
 import com.starwars.gateway.common.utils.ResultVoUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.security.config.Customizer;
@@ -36,10 +35,12 @@ public class CustomFormLogin implements Customizer<ServerHttpSecurity.FormLoginS
                         response.setStatusCode(org.springframework.http.HttpStatus.OK);
                         response.getHeaders().add("Content-Type", "application/json;charset=UTF-8");
                         DataBufferFactory dataBufferFactory = response.bufferFactory();
+                        String id = response.getCookies().getFirst("StarWarsID").getValue();
+                        log.info("登录成功: " + id);
                         // 使用 Jackson 序列化对象
                         String result;
                         try {
-                            result = objectMapper.writeValueAsString(ResultVoUtil.success());
+                            result = objectMapper.writeValueAsString(ResultVoUtil.success(id));
                         } catch (Exception e) {
                             result = "{\"code\": 500, \"msg\": \"Internal Server Error\"}";
                         }

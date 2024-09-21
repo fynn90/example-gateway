@@ -6,7 +6,6 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.core.io.buffer.DataBufferUtils;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.server.authentication.ServerAuthenticationConverter;
 import org.springframework.web.server.ServerWebExchange;
@@ -15,9 +14,6 @@ import reactor.core.publisher.Mono;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-/**
- * 从 请求的 body 获取用户信息；
- */
 @Slf4j
 public class JsonServerAuthenticationConverter implements ServerAuthenticationConverter {
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -46,7 +42,7 @@ public class JsonServerAuthenticationConverter implements ServerAuthenticationCo
                         log.info("Username: " + username);
                         log.info("Password: " + password);
                         if (username != null && password != null) {
-                            return Mono.just(new UsernamePasswordAuthenticationToken(username, password));
+                            return Mono.just(new CustomAuthentication(username, password));
                         } else {
                             return Mono.empty();
                         }
